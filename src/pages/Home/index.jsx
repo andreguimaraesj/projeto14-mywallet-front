@@ -1,49 +1,83 @@
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 import { BiExit } from "react-icons/bi";
 import { AiOutlineMinusCircle, AiOutlinePlusCircle } from "react-icons/ai";
-import { deleteSignOut } from "../../services/api";
+import { FallingLines } from "react-loader-spinner";
 import useAuth from "../../hooks/useAuth";
+import { deleteSignOut, getTransactions } from "../../services/api";
+import Transaction from "./Transaction";
 
 export default function Home() {
-  const navigate = useNavigate();
   const { auth, signOut } = useAuth();
-
+  const navigate = useNavigate();
+  const [Loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState([]);
+  let totalTransaction = 0;
+  useEffect(() => {
+    function success(data) {
+      if (data.length === 0) {
+        setLoading(false);
+      }
+      setTransactions(data);
+    }
+    getTransactions(auth.token, success);
+  }, []);
   return (
     <HomeContainer>
       <Header>
-        <h1 data-test="user-name">Olá, Fulano</h1>
+        <h1 data-test="user-name">{`Olá, ${auth.name}`}</h1>
         <BiExit
           data-test="logout"
           onClick={() => {
-            deleteSignOut(auth, signOut);
+            deleteSignOut(auth.token, signOut);
           }}
         />
       </Header>
 
       <TransactionsContainer>
-        <ul>
-          <ListItemContainer>
-            <div>
-              <span>30/11</span>
-              <strong>Almoço mãe</strong>
-            </div>
-            <Value color={"negativo"}>120,00</Value>
-          </ListItemContainer>
-
-          <ListItemContainer>
-            <div>
-              <span>15/11</span>
-              <strong>Salário</strong>
-            </div>
-            <Value color={"positivo"}>3000,00</Value>
-          </ListItemContainer>
-        </ul>
+        {transactions.length === 0 ? (
+          Loading && (
+            <FallingLines
+              color="#8c11be"
+              width="100"
+              visible={true}
+              ariaLabel="falling-lines-loading"
+            />
+          )
+        ) : (
+          <ul>
+            {transactions.map((transaction) => {
+              if (transaction.type === "entrada") {
+                totalTransaction += transaction.amount;
+              } else {
+                totalTransaction -= transaction.amount;
+              }
+              return (
+                <Transaction
+                  key={transaction._id}
+                  id={transaction._id}
+                  transactions={transactions}
+                  setTransactions={setTransactions}
+                  date={transaction.date}
+                  description={transaction.description}
+                  amount={transaction.amount}
+                  type={transaction.type}
+                />
+              );
+            })}
+          </ul>
+        )}
 
         <article>
           <strong>Saldo</strong>
-          <Value data-test="total-amount" color={"positivo"}>
-            2880,00
+          <Value
+            data-test="total-amount"
+            color={totalTransaction >= 0 ? "entrada" : "saida"}
+          >
+            {totalTransaction.toLocaleString("pt-br", {
+              minimumFractionDigits: 2,
+            })}
           </Value>
         </article>
       </TransactionsContainer>
@@ -78,9 +112,10 @@ export default function Home() {
 }
 
 const HomeContainer = styled.div`
+  padding: 25px 0px;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 50px);
 `;
 const Header = styled.header`
   display: flex;
@@ -104,6 +139,14 @@ const TransactionsContainer = styled.article`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+
+  ul {
+    max-height: 450px;
+    overflow-y: scroll;
+  }
+  svg {
+    align-self: center;
+  }
   article {
     display: flex;
     justify-content: space-between;
@@ -135,17 +178,5 @@ const ButtonsContainer = styled.section`
 const Value = styled.div`
   font-size: 16px;
   text-align: right;
-  color: ${(props) => (props.color === "positivo" ? "green" : "red")};
-`;
-const ListItemContainer = styled.li`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  color: #000000;
-  margin-right: 10px;
-  div span {
-    color: #c6c6c6;
-    margin-right: 10px;
-  }
+  color: ${(props) => (props.color === "entrada" ? "green" : "red")};
 `;
